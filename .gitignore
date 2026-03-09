@@ -1,0 +1,32 @@
+# Local/private working notes
+local_docs/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*.jks
+*.keystore
+
+# Databases / logs
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Runtime report outputs
+daily_report/
+
+# OS files
+.DS_Store
+Thumbs.db
