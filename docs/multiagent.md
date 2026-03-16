@@ -1,228 +1,168 @@
-# OpenInsight Multi-Agent 设计（OpenCode 内部）
+# OpenInsight Multi-Agent Runtime
 
-## 1. 文档定位
+这份文档描述当前仓库里的 OpenInsight 多代理 `delivery` runtime，目标是把职责边界和上下文边界写清楚，避免 prompt 设计重新耦合。
 
-本文档只定义 OpenInsight 在 **OpenCode 内部** 的 multi-agent 设计，用于完成一次 `delivery` 链路中的检索、深读、融合与成稿。
+## 1. 核心原则
 
-本文档是一个 **OpenCode 运行时编排规范**，不是系统总架构文档；以下内容不在本文档范围内：
+1. **唯一个性化入口**：只有 `openinsight-orchestrator` 能读取原始用户 prompt。
+2. **项目配置解耦**：项目级事实只维护在 `projects/*.md`，并且只有 `project-coordinator` 能直接读取。
+3. **逐级消化再下传**：父 agent 必须先把上下文压缩成结构化 brief，再把更小的上下文传给子 agent。
+4. **流程优先于人设**：`.opencode/agents/*.md` 只保证流程通、契约稳、边界清晰；不承载 PL / 开发骨干 / 部门战略这类持久化人设。
 
-运行时所需的最小上下文应以内置于 `.opencode/instructions.md`、`.opencode/agents/*.md` 与 `.opencode/skills/*` 的内容为准；agent 不应依赖“显式引用本文档”才能知道 workflow、拓扑或 artifact contract。
+## 2. 三条上下文通道
 
-- 用户回复与偏好更新
-- 调度、投递、收信
-- 身份映射、隐私边界、日志存储
-- OpenCode 之外的任何组件设计
-
-## 2. 规范来源
-
-本文以 OpenCode 官方文档为准，并在编写过程中使用 Context7 对齐字段名、配置面与能力边界。
-
-- Agents: <https://opencode.ai/docs/agents>
-- Commands: <https://opencode.ai/docs/commands>
-- Skills: <https://opencode.ai/docs/skills>
-- MCP Servers: <https://opencode.ai/docs/mcp-servers>
-
-如果本文与官方文档冲突，以官方文档为准。
-
-## 3. 设计目标
-
-- **上下文隔离**：检索、深读、融合、写作分层进行，避免原始 MCP 噪声污染成稿上下文。
-- **项目隔离**：每个项目单独收敛证据，再进入跨项目融合。
-- **结果结构化**：subagent 之间只传递 OpenInsight 内部约定对象，不传递长篇原文。
-- **拓扑无环**：subagent 只把结果返回给直接调用者，不反向调用父 agent，也不与 sibling agent 直接通信。
-- **能力可控**：工具、MCP、skills、task 权限按 agent 单独配置。
-
-## 4. OpenCode 中的基本约束
-
-### 4.1 Agent 类型
-
-按照官方文档，OpenCode 只有两类 agent：
-
-- `primary agent`：用户直接交互的主 agent
-- `subagent`：由主 agent 或其他 agent 调用的专用 agent
-
-OpenInsight 的默认主 agent 为 `openinsight-orchestrator`；其余角色全部定义为 `subagent`。
-
-### 4.2 调用语义
-
-- `openinsight-orchestrator` 负责一次 `delivery` 的入口、分发与最终聚合。
-- `project-coordinator(<project>)` 表示一次项目级 subagent 调用实例，不表示必须为每个项目维护一份独立的 agent 配置。
-- subagent 的输出必须回到直接调用者，再由调用者决定下一步 fan-out 或 fan-in。
-- 本设计不依赖任何“全局 workflow 引擎语义”；依赖的是 OpenCode 官方支持的 primary/subagent、commands、skills、permissions 与 per-agent MCP 配置。
-
-### 4.3 工具与 MCP 原则
-
-- 检索类 agent 只获得完成自身任务所需的 MCP 与工具。
-- `briefing-composer` 不应拥有搜索、浏览器抓取或社区检索类 MCP。
-- 重型 MCP 默认全局关闭，再按 agent 局部开启。
-- 文档、审阅、规范对齐类工作可以开启 `Context7`；生产态 `delivery` 链路不要求依赖 `Context7` 产出内容。
-
-## 5. Agent 拓扑
-
-### 5.1 核心角色
-
-| Agent | Mode | 责任 | 允许调用 |
+| 通道 | 归属方 | 作用 | 允许到达哪里 |
 | --- | --- | --- | --- |
-| `openinsight-orchestrator` | `primary` | 生成本轮 `session_delivery_plan`，按项目分发任务，聚合项目证据，触发融合与成稿 | `project-coordinator`、`evidence-fuser`、`briefing-composer` |
-| `project-coordinator` | `subagent` | 读取单项目配置与本轮计划，调度该项目的 scout 与深读 | `github-scout`、`external-source-scout-web`、`external-source-scout-slack`、`item-analyst` |
-| `github-scout` | `subagent` | 只处理 GitHub 来源的候选发现与压缩 | 无 |
-| `external-source-scout-web` | `subagent` | 只处理官网、博客、论坛等 Web 来源的候选发现与压缩 | 无 |
-| `external-source-scout-slack` | `subagent` | 只处理 Slack 来源的候选发现与压缩 | 无 |
-| `item-analyst` | `subagent` | 深读单个候选，输出结构化 `item_brief` | 无 |
-| `evidence-fuser` | `subagent` | 融合多个项目的证据包，输出跨项目排序结果 | 无 |
-| `briefing-composer` | `subagent` | 从 `ranked_event[]` 与 `trace` 线索生成最终 `mail_html` | 无 |
+| 原始用户 prompt | `openinsight-orchestrator` | 定义本次 run 的分析视角、时间窗口、重点主题、目标项目和输出偏好 | 只到 orchestrator |
+| `projects/*.md` | `project-coordinator` | 定义项目级数据源、repo 关系、版本映射和本地分析策略 | 只允许 coordinator 直接读取 |
+| runtime artifacts | 上游 agent | 逐级传递缩减后的结构化上下文 | 只在父子 agent 间流动 |
 
-### 5.2 调用图
+结论：
+
+- 不使用 `users/*`
+- 不使用 `department_strategy.md`
+- 不把原始用户 prompt 一路透传给所有 agent
+- 不允许用户 prompt 临时覆盖 `projects/*.md`
+
+## 3. 拓扑
 
 ```mermaid
 flowchart TD
-    O[openinsight-orchestrator\nprimary]
-    P[project-coordinator\nsubagent]
-    G[github-scout]
-    W[external-source-scout-web]
-    S[external-source-scout-slack]
-    I[item-analyst]
-    F[evidence-fuser]
-    C[briefing-composer]
+    O[openinsight-orchestrator] --> P1[project-coordinator]
+    O --> P2[evidence-fuser]
+    O --> P3[briefing-composer]
 
-    O --> P
-    P --> G
-    P --> W
-    P --> S
-    P --> I
-    O --> F
-    O --> C
+    P1 --> G[github-scout]
+    P1 --> W[external-source-scout-web]
+    P1 --> S[external-source-scout-slack]
+    P1 --> I[item-analyst]
 ```
 
-这张图只表示“谁可以调用谁”。结果回传方向始终是：**子 agent 返回给直接调用者**。
+运行关系是固定的：
 
-## 6. `delivery` 运行流程
+- `openinsight-orchestrator`：唯一主入口
+- `project-coordinator`：唯一项目级 dispatcher
+- scouts / `item-analyst`：只服务于单项目协调器
+- `evidence-fuser`：唯一跨项目排序层
+- `briefing-composer`：唯一成稿层
 
-1. `openinsight-orchestrator` 接收一次 `delivery` 请求，生成本轮 `session_delivery_plan`。
-2. `openinsight-orchestrator` 按项目 fan-out 多次调用 `project-coordinator`。
-3. 每个 `project-coordinator` 读取对应 `projects/*.md` 配置，决定本项目要启用的 source、候选上限与深读配额。
-4. `project-coordinator` 并行调用 `github-scout`、`external-source-scout-web`、`external-source-scout-slack`，收集并压缩候选为 `candidate_card[]`。
-5. `project-coordinator` 只挑选少量高价值候选，并将其归一化为 `selected_candidate[]`。
-6. `project-coordinator` 将 `selected_candidate[]` 交给 `item-analyst` 深读，得到 `item_brief[]`。
-7. 每个 `project-coordinator` 返回一个 `project_evidence_pack` 给 `openinsight-orchestrator`。
-8. `openinsight-orchestrator` 调用 `evidence-fuser`，把多项目证据包融合为 `ranked_event[]`。
-9. `openinsight-orchestrator` 调用 `briefing-composer`，输出 `mail_html` 与最终 `trace`。
+## 4. 运行流程
 
-## 7. 各 agent 的职责边界
+1. `openinsight-orchestrator` 读取原始用户 prompt。
+2. orchestrator 把 prompt 翻译成 `session_directives`。
+3. orchestrator 决定 `target_projects[]`。
+4. orchestrator 为每个目标项目生成一个 `project_run_brief`。
+5. `project-coordinator` 读取对应的 `projects/<project>.md`。
+6. coordinator 结合项目配置和 `project_run_brief`，生成若干 `source_discovery_brief`。
+7. scouts 返回压缩后的 `candidate_card[]`。
+8. coordinator 把少量高价值候选收敛成 `selected_candidate`，再扩展成 `item_analysis_brief`。
+9. `item-analyst` 深读单条候选，返回 `item_brief`。
+10. coordinator 汇总为 `project_evidence_pack`。
+11. orchestrator 调用 `evidence-fuser` 生成 `ranked_event[]`。
+12. orchestrator 调用 `briefing-composer` 生成 `mail_html + trace`。
+13. orchestrator 持久化结果到 `daily_report/`。
 
-### 7.1 `openinsight-orchestrator`
+## 5. Artifact Contract
 
-- 唯一主入口。
-- 只持有高层计划、项目级摘要和最终聚合结果。
-- 不直接读取原始 GitHub/论坛/Slack 长文本。
-- 不直接写最终社区结论；融合和成稿分别交给专用 subagent。
+| Artifact | 生产者 | 消费者 | 用途 |
+| --- | --- | --- | --- |
+| `session_directives` | orchestrator | orchestrator / downstream briefs | 本次 run 的结构化个性化配置 |
+| `session_delivery_plan` | orchestrator | orchestrator | 控制面计划、预算、假设 |
+| `project_run_brief` | orchestrator | `project-coordinator` | 单项目运行范围与偏好 |
+| `source_discovery_brief` | `project-coordinator` | scouts | 单项目单来源的最小发现上下文 |
+| `candidate_card` | scouts | `project-coordinator` | 候选线索摘要 |
+| `selected_candidate` | `project-coordinator` | `project-coordinator` | 规范化后的深读目标 |
+| `item_analysis_brief` | `project-coordinator` | `item-analyst` | 深读所需的最小上下文 |
+| `item_brief` | `item-analyst` | `project-coordinator` | 单条候选的深读结论 |
+| `project_evidence_pack` | `project-coordinator` | orchestrator / `evidence-fuser` | 单项目交付包 |
+| `ranked_event` | `evidence-fuser` | orchestrator / `briefing-composer` | 跨项目排序后的事件 |
+| `trace` | `briefing-composer` | orchestrator / consumers | 最终输出的来源与工具映射 |
 
-### 7.2 `project-coordinator`
+### 5.1 `session_directives`
 
-- 作用域始终限制在单个项目内。
-- 负责本项目的 source 调度、候选筛选、候选归一化和深读配额控制。
-- 不直接写最终邮件。
-- 可以读取项目配置，但不负责跨项目排序。
-- 对来自 GitHub、Web、Slack 的候选执行统一归一化，解析 `canonical_subject`。
-- 决定 `analysis_mode`：`narrative-only`、`code-aware-remote` 或 `code-aware-local`。
-- 对需要代码校验的候选补齐显式 `repo@ref/sha`，再交给 `item-analyst`。
+推荐最小字段：
 
-### 7.3 `github-scout`
+- `audience_lens`
+- `focus_topics[]`
+- `deprioritized_topics[]`
+- `time_window`
+- `ranking_bias[]`
+- `output_preferences`
+- `target_projects[]`
+- `assumptions[]`
 
-- 只处理 GitHub 来源。
-- 输出候选卡片，不输出最终结论。
-- 返回内容必须是短结构，不携带大段 PR/Issue/评论原文。
+`session_directives` 只描述本次运行的偏好，不写入仓库长期状态。
 
-### 7.4 `external-source-scout-web`
+### 5.2 `project_run_brief`
 
-- 只处理 Web 来源，例如官网、博客、论坛。
-- 默认优先轻量抓取；只有在证据不足时才升级到更重的浏览能力。
-- 输出仍然是 `candidate_card[]`，不是成稿。
+推荐最小字段：
 
-### 7.5 `external-source-scout-slack`
+- `project_id`
+- `scoped_directives`
+- `source_budget`
+- `deep_read_budget`
+- `assumptions[]`
 
-- 只处理 Slack 来源。
-- 只读取项目允许的工作区/频道范围。
-- 输出候选卡片，不做全局总结。
+它的作用是把 orchestrator 的全局偏好裁剪成“这个项目现在该怎么跑”，而不是替代 `projects/*.md`。
 
-### 7.6 `item-analyst`
+### 5.3 `item_analysis_brief`
 
-- 一次只深读一个标准化候选。
-- 输出 `item_brief`，至少回答：发生了什么、为什么重要、影响范围、建议动作、证据引用。
-- 不负责排序多个项目，也不直接输出邮件段落。
-- 对 `code-aware-*` 候选，必须基于 `project-coordinator` 提供的显式 `repo@ref/sha` 做分析。
-- 如果代码上下文缺失或矛盾，必须返回 coverage gap，而不是猜测性结论。
+推荐最小字段：
 
-### 7.7 `evidence-fuser`
+- `selected_candidate`
+- `focus_topics[]`
+- `output_expectations`
+- `analysis_mode`
+- `code_context`
 
-- 只消费 `project_evidence_pack[]`。
-- 不重新发起检索。
-- 负责跨项目统一排序、去重、归并和覆盖说明。
+它让 `item-analyst` 只拿到深读必需的信息，而不是整个项目背景或用户原始 prompt。
 
-### 7.8 `briefing-composer`
+## 6. Agent Responsibilities
 
-- 只消费 `ranked_event[]` 与 `trace` 线索。
-- 不直接接触原始 MCP 输出。
-- 负责生成最终 `mail_html`，并确保 `trace` 能反推来源。
+### 6.1 `openinsight-orchestrator`
 
-## 8. OpenInsight 内部约定对象
+- 唯一读取原始用户 prompt
+- 唯一决定 `target_projects[]`
+- 负责把 prompt 翻译成结构化 `session_directives`
+- 不直接抓取 source
+- 不直接调用 scout 或 `item-analyst`
 
-以下对象是 **OpenInsight 内部约定 artifact**，不是 OpenCode 官方内建类型。
+### 6.2 `project-coordinator`
 
-| 对象 | 作用 | 最小要求 |
-| --- | --- | --- |
-| `session_delivery_plan` | 本轮 delivery 的控制面对象 | 至少包含项目列表、优先级、source 预算、深读配额 |
-| `candidate_card` | scout 压缩后的候选线索 | 至少包含来源、链接、摘要、入选原因，以及轻量级 canonical subject hint / linked URLs |
-| `selected_candidate` | 交给 `item-analyst` 的标准化单条候选 | 至少包含 `canonical_subject`、`analysis_mode`、`code_context` |
-| `item_brief` | 单条候选的深读结果 | 至少包含影响、建议动作、证据引用，以及 analysis basis |
-| `project_evidence_pack` | 单项目交付给 orchestrator 的证据包 | 至少包含 `item_brief[]` 与覆盖状态 |
-| `ranked_event` | 跨项目融合后的排序结果 | 至少包含优先级、影响摘要、引用集合 |
-| `trace` | 最终交付使用的来源与工具摘要 | 必须能反推本轮使用了哪些来源与链接 |
+- 唯一直接读取 `projects/*.md`
+- 负责把项目配置与 run 级偏好合并
+- 负责 source 激活、候选归一化、深读输入构造
+- 不做跨项目排序
 
-设计约束：父 agent 只保留这些结构化对象，不把正文全文、评论全文、diff 全文重新塞回自己的上下文。
+### 6.3 Scouts
 
-### 8.1 `selected_candidate`
+- 只做发现，不做深读
+- 只返回 `candidate_card[]`
+- 不读原始用户 prompt
+- 不读 `projects/*.md`
 
-`selected_candidate` 是 `project-coordinator` 交给 `item-analyst` 的唯一深读输入，用来把“多来源候选”收敛成“可复现的分析上下文”。
+### 6.4 `item-analyst`
 
-最小建议字段：
+- 只深读单个 `item_analysis_brief`
+- 不做 broad scout
+- 不做跨项目排序
+- 只在显式 `repo@ref/sha` 上做 code-aware 分析
 
-- `source_type`: `github | web | slack`
-- `kind`: `pr | issue | release | discussion | blog | forum_post | slack_thread`
-- `canonical_subject`
-  - `repo`
-  - `kind`
-  - `number` / `tag` / `commit_sha`
-  - `url`
-- `linked_subjects[]`
-- `analysis_mode`: `narrative-only | code-aware-remote | code-aware-local`
-- `code_context.repositories[]`
-  - `repo`
-  - `role`: `primary | upstream | dependency | related`
-  - `ref`
-  - `sha`
-  - `compare_base_sha` / `compare_head_sha`
-  - `local_checkout_path`
-- `changed_files[]`
-- `resolution_notes[]`
+### 6.5 `evidence-fuser`
 
-约束：
+- 只消费 `project_evidence_pack[]`
+- 是唯一跨项目排序层
+- 只接受 compact ranking preferences，不接受原始用户 prompt
 
-- `narrative-only`：允许只基于叙事证据分析，但必须明确没有做代码上下文校验。
-- `code-aware-remote`：默认开源模式；依赖 GitHub MCP 按显式 `repo@ref/sha` 读取。
-- `code-aware-local`：可选增强模式；依赖本地 repo cache / worktree。
-- 任何 `code-aware-*` 候选若缺少确定 `repo@ref/sha`，必须返回 coverage gap。
+### 6.6 `briefing-composer`
 
-### 8.2 项目级配置面
+- 只消费 `ranked_event[]`、trace-ready evidence 和 output preferences
+- 是唯一成稿层
+- 不自行引入隐藏 persona 或部门策略
 
-`projects/*.md` 是运行时配置面，由 `project-coordinator` 读取，用于决定：
+## 7. 项目配置面
 
-- 要启用哪些 source
-- 仓库关系（主仓、上游、依赖、相关仓）
-- 版本映射规则
-- 是否启用本地 repo cache / worktree 增强模式
-
-推荐最小结构：
+`projects/*.md` 继续作为项目级配置面，推荐最小结构：
 
 ```md
 # <Project> Project Config
@@ -251,172 +191,38 @@ flowchart TD
 - worktree_dir: .cache/openinsight/worktrees
 ```
 
-## 9. 推荐配置方式
+允许用户 prompt 做的事：
 
-### 9.1 Agent 配置载体
+- 指定本次只跑哪些已配置项目
+- 指定本次更关心哪些主题
+- 指定时间窗口、输出风格、排序偏好
 
-官方支持两种主要配置面：
+不允许用户 prompt 做的事：
 
-- `opencode.json`
-- `.opencode/agents/*.md`
+- 临时添加新的 source
+- 临时修改 repo 映射或版本映射
+- 临时改变本地分析策略
 
-推荐做法：
-
-- 在 `opencode.json` 中定义默认 agent、task 权限和全局工具开关。
-- 在 `.opencode/agents/*.md` 中维护职责清晰、可单独审阅的 subagent prompt。
-
-### 9.2 推荐的 `opencode.json` 结构
-
-下面的示例只展示 **OpenInsight 需要的关键字段名**，字段命名与能力边界对齐官方文档。
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "agent": {
-    "openinsight-orchestrator": {
-      "mode": "primary",
-      "description": "Entry point for one delivery run",
-      "permission": {
-        "task": {
-          "*": "deny",
-          "project-coordinator": "allow",
-          "evidence-fuser": "allow",
-          "briefing-composer": "allow"
-        }
-      }
-    },
-    "project-coordinator": {
-      "mode": "subagent",
-      "description": "Coordinates one project's scouts and deep reads",
-      "permission": {
-        "task": {
-          "*": "deny",
-          "github-scout": "allow",
-          "external-source-scout-web": "allow",
-          "external-source-scout-slack": "allow",
-          "item-analyst": "allow"
-        }
-      }
-    },
-    "github-scout": {
-      "mode": "subagent"
-    },
-    "external-source-scout-web": {
-      "mode": "subagent"
-    },
-    "external-source-scout-slack": {
-      "mode": "subagent"
-    },
-    "item-analyst": {
-      "mode": "subagent"
-    },
-    "evidence-fuser": {
-      "mode": "subagent"
-    },
-    "briefing-composer": {
-      "mode": "subagent"
-    }
-  }
-}
-```
-
-### 9.3 Markdown agent 示例
-
-对于职责明确的 subagent，推荐使用 `.opencode/agents/*.md` 维护 prompt。
-
-```md
----
-description: Writes the final briefing from ranked events and trace-ready evidence
-mode: subagent
-tools:
-  bash: false
-  edit: false
-  write: false
----
-
-You are the briefing composer for OpenInsight.
-
-Rules:
-- Only use structured ranked events and trace-ready evidence
-- Do not fetch new evidence
-- Do not read raw MCP output
-- Produce final mail_html and trace
-```
-
-### 9.4 Commands 绑定
-
-官方支持在 `opencode.json` 中把命令绑定到指定 agent。
-
-推荐至少提供一个入口命令，把一次日报/周报生成明确绑定到 `openinsight-orchestrator`：
-
-```json
-{
-  "command": {
-    "daily-briefing": {
-      "agent": "openinsight-orchestrator"
-    }
-  }
-}
-```
-
-如果某个命令绑定到 `subagent`，官方默认会以 subagent 调用方式执行，除非显式设置 `subtask: false`。
-
-### 9.5 Skills 使用原则
-
-- 用 `.opencode/skills/*/SKILL.md` 封装重复出现的工作流约束，例如项目检索规则、成稿风格、审阅清单。
-- skills 用于补充执行约束，不替代 agent 拓扑设计。
-- skill 权限应保持最小化；agent 的调用边界仍以 `permission.task` 和工具权限为准。
-
-### 9.6 MCP 与工具开关
-
-官方支持把 MCP 全局关闭、再按 agent 局部开启。
-
-OpenInsight 的推荐策略是：
-
-- `github-scout` 只开启 GitHub 检索相关 MCP
-- `external-source-scout-web` 只开启网页抓取/浏览能力
-- `external-source-scout-slack` 只开启 Slack 相关 MCP
-- `item-analyst` 默认走 `code-aware-remote`，只围绕已提供的 `repo@ref/sha` 读取所需证据
-- `item-analyst` 不直接持有 broad scout 能力，不自行决定版本映射或 checkout 策略
-- `briefing-composer` 不开启任何社区检索 MCP
-
-默认部署建议是 **remote-first**：
-
-- 默认只依赖 GitHub MCP 精确读取 `repo@ref/sha`
-- 本地 repo cache / worktree 是可选增强模式，不是开源部署前置条件
-
-推荐本地目录：
+## 8. 示例 prompt
 
 ```text
-.cache/openinsight/repos/github.com/pytorch/pytorch.git
-.cache/openinsight/worktrees/pytorch-pytorch/v2.7.1-<sha>
-.cache/openinsight/worktrees/ascend-torch-npu/v2.7.1-<sha>
+run one OpenInsight daily delivery
 ```
 
-## 10. 约束与非目标
+```text
+PL lens, only cover pytorch and torch-npu, focus on breaking changes and ecosystem impact from the last 7 days
+```
 
-### 10.1 这份文档明确要求的约束
+```text
+Core maintainer lens, all configured projects, prioritize API churn, release blockers, and notable maintainer discussions this week
+```
 
-- 不设计 `delivery` 之外的链路。
-- 不把 sibling agent 之间的消息传递建模为运行时能力。
-- 不把 OpenInsight 内部 artifact 误写成 OpenCode 官方 schema。
-- 不把具体模型名写死到拓扑里；模型选择属于运行时配置，不属于本文的稳定接口。
+## 9. 当前非目标
 
-### 10.2 这份文档明确不做的事情
+当前 runtime 明确不处理：
 
-- 不定义用户回复解析与画像更新链路。
-- 不定义 OpenCode 外部的服务、队列、数据库、邮件链路。
-- 不定义任何与检索无关的 UI 组件。
-
-## 11. 结论
-
-OpenInsight 在 OpenCode 内部采用一个主 agent + 多个职责清晰的 subagent：
-
-- `openinsight-orchestrator`：唯一入口与最终聚合
-- `project-coordinator`：单项目调度与候选归一化
-- `github-scout` / `external-source-scout-web` / `external-source-scout-slack`：按来源检索
-- `item-analyst`：基于 `selected_candidate` 的单条证据深读
-- `evidence-fuser`：跨项目融合
-- `briefing-composer`：最终成稿与 `trace`
-
-这套设计与 OpenCode 官方支持的 agents、commands、skills、permissions、per-agent MCP 模式保持一致，同时把 OpenInsight 的运行时对象限制为少量结构化 artifact，并把“代码版本上下文绑定”前移到 `project-coordinator`，避免 `item-analyst` 在多来源、多仓库、多版本场景下引用错误代码上下文。
+- `users/*`、持久化画像、持久化偏好
+- `department_strategy.md` 或其他全局策略文件
+- reply-feedback 闭环
+- SMTP / IMAP / 队列 / 数据库 / PII 映射
+- 非 `delivery` 链路

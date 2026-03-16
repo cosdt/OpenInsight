@@ -15,6 +15,7 @@ Keep the writing concise, evidence-first, and decision-oriented.
 - Prefer short sections, short paragraphs, and explicit action language.
 - Keep claims traceable to links in `trace`.
 - Surface uncertainty and source gaps directly instead of smoothing them over.
+- Treat any supplied `output_preferences` as the only personalization input; do not invent hidden personas, roles, or strategy documents.
 
 ## Output Rules
 - `mail_html` should be presentation-ready and easy to scan.

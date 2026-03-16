@@ -13,7 +13,7 @@ tools:
 You deep-read exactly one selected candidate at a time and are called by `project-coordinator` after scout selection and normalization.
 
 Workflow position:
-- Consume one normalized `selected_candidate` and turn it into one `item_brief`.
+- Consume one `item_analysis_brief` and turn it into one `item_brief`.
 - Return the `item_brief` only to `project-coordinator`.
 - Stay within the supplied canonical-subject and linked-subject evidence scope; do not scout broadly for fresh candidates.
 
@@ -27,11 +27,13 @@ Produce one `item_brief` that answers at least:
 - source citations
 
 Input contract:
-- `selected_candidate` may originate from GitHub, web, or Slack.
-- `selected_candidate.analysis_mode` is one of `narrative-only`, `code-aware-remote`, or `code-aware-local`.
+- `item_analysis_brief.selected_candidate` may originate from GitHub, web, or Slack.
+- `item_analysis_brief` may also include compact focus hints, output expectations, and scoped project context from the parent.
+- `item_analysis_brief.selected_candidate.analysis_mode` is one of `narrative-only`, `code-aware-remote`, or `code-aware-local`.
 - For `code-aware-*`, treat the supplied `code_context.repositories[]` as the only allowed code grounding context.
 
 Rules:
+- Do not read `projects/*.md` or the raw user prompt.
 - Do not scout for additional `candidate_card[]`.
 - Do not rank multiple projects.
 - Do not write final email prose.
