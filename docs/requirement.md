@@ -12,7 +12,7 @@
 ## 解决方案
 
 1. 在Opencode基础上，开发multi-agent+skill的社区动态分析agent。
-
+2. 开发pytorch-community-dynamics-mcp，使agent更容易获得动态信息。
 
 ## 社区动态agent
 
@@ -110,3 +110,47 @@ flowchart TD
     class Tab good
     class Prompt good
 ```
+
+## pytorch-community-dynamics-mcp
+
+核心是能让agent容易地获得pytorch社区的一段时间内的**动态**信息。动态信息散落在issue、pr、rfc、社区大牛活动、slack、开发者论坛、pytorch官网（本质也是在github上），而需要获取这些信息的mcp有github mcp、slack mcp、discourse mcp。
+
+这些mcp提供的工具组合起来很复杂，有些工具也用不着，同时那么多工具容易污染上下文，同时除了issue、pr也不方便找到动态，需要多次调用。
+
+### 接口设计
+
+基于github mcp、discourse mcp、slack mcp，linkedin mcp，专门设计获取社区动态的mcp，相关接口如下。
+
+```python
+# 获取一段时间内的pr，可指定模块
+get_recent_prs
+
+# 获取一段时间内的issue，可指定模块
+get_recent_issues
+
+# 获取一段时间的rfc
+get_recent_rfcs
+
+# 获取一段时间内的指定频道的slack信息
+get_recent_slack_threads
+
+# 获取一段时间内的关键人物的动态
+get_key_contributors_activity
+
+# 获取一段时间内的开发者论坛动态
+get_recent_discussions
+
+# 获取更多mcp工具，例如github mcp
+get_specific_mcp_tool
+```
+
+## TODO List
+
+- [ ]  完成multi-agent编排与各个agent的prompt编写。
+- [ ]  添加静态分析代码的功能。
+- [ ]  开发PyTorch Activity MCP
+- [ ]  沉淀PyTorch Activity MCP开发经验，便于scale到其他开源项目。
+
+## 合规
+
+仅限内部使用。仅获取公开信息。
