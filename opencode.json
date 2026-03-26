@@ -3,11 +3,7 @@
   "instructions": [
     "AGENTS.md"
   ],
-  "tools": {
-    "openinsight-github*": true,
-    "openinsight-web*": true,
-    "openinsight-slack*": true
-  },
+  "tools": {},
   "mcp": {
     "github": {
       "type": "remote",

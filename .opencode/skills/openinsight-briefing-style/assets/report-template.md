@@ -4,16 +4,16 @@
 
 ---
 
-## Executive Summary
+## 概览
 
 {{executive_summary}}
 
 <!--
-3-5 个要点，MUST 引用至少一条 GitHub 来源的动态（如有）。
+3-5 句总体摘要。
 根据用户角色调整侧重点。
 -->
 
-## 高价值动态详情
+## 重点关注
 
 {{high_value_items}}
 
@@ -22,29 +22,18 @@
 
 ### 🔴 [标题](URL)
 
-- **类型**: PR / Issue / Discussion
+- **类型**: PR / Issue / RFC
 - **作者**: @author | **日期**: YYYY-MM-DD
-- **影响等级**: 🔴 High / 🟡 Medium / 🟢 Low
 
 分析摘要...
 
-- **建议行动**: 关注 / 参与讨论 / 代码审查 / 适配准备
-- **信息来源**: PR diff, Discourse discussion
+- **建议行动**: 关注 / 跟进 / 适配 / 忽略
+- **优先级**: P0 / P1 / P2
+
+> 入选原因: {why_selected}
 -->
 
-## 跨动态洞察
-
-{{cross_insights}}
-
-<!--
-使用引用块展示洞察：
-
-> **模块趋势**: 本周 distributed training 模块有密集重构活动
-
-> **关键人物**: 开发者X在多个模块有活跃贡献
--->
-
-## 分类动态列表
+## 社区动态
 
 {{categorized_list}}
 
@@ -69,22 +58,33 @@
 | | [标题](URL) | YYYY-MM-DD | 一句话摘要 |
 
 </details>
+
+分类顺序：Pull Requests, Issues, RFC, Discourse 讨论, Blog / 公告, Events
 -->
 
-## 数据源覆盖状态
+## 关键人物动态
 
-{{data_source_status}}
+{{key_contributors}}
 
 <!--
-使用表格展示数据源状态：
+社区关键人物的活动摘要。
+若无关键人物数据，简要说明并跳过此节内容。
+-->
+
+## 附录
+
+{{appendix}}
+
+<!--
+数据采集统计和数据源覆盖状态：
 
 | 状态 | 数据源 | 说明 |
 |------|--------|------|
-| ✅ | GitHub | 正常采集，获取 30 条动态 |
-| ⚠️ | GitHub | 降级模式（gh CLI），数据可能不完整 |
-| ❌ | Slack | 不可用（MCP 未启用），Slack 讨论数据缺失 |
+| ✅ | GitHub | 正常采集，获取 N 条动态 |
+| ⚠️ | Discourse | 降级模式，数据可能不完整 |
+| ❌ | Slack | 不可用，Slack 讨论数据缺失 |
 
-数据管道统计：采集 N 条 → 融合后 M 条 → 高价值分析 K 条
+数据管道统计：采集 N 条 → 融合后 M 条 → 深度分析 K 条
 -->
 
 ---
