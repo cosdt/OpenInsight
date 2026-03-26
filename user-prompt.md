@@ -18,7 +18,13 @@ pytorch团队开发者
 - 涉及torch.distributed模块的重构
 - 社区治理方向性讨论（RFC、路线图）
 
+## 下游项目 (Downstream Projects)
+- Ascend/pytorch (torch-npu)
+
+## 关键人物 (Key Contributors)
+<!-- 关注的社区关键人物，留空则使用 MCP 返回的默认列表 -->
+
 ## 输出偏好 (Output Preferences)
 - 语言: 中文
-- 格式: HTML
+- 格式: Markdown
 - 详细程度: 详细（含代码级分析）

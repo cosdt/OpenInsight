@@ -3,18 +3,28 @@
 ## Data Sources
 - source: https://github.com/pytorch/pytorch
   type: github
-  fetcher: github-mcp
-  scope: [release, issue, pr, discussion]
+  fetcher: pytorch-community-mcp
+  scope: [pr, issue, rfc, commits, key-contributors]
 
 - source: https://dev-discuss.pytorch.org/
   type: discourse
-  fetcher: webfetch
-  scope: [core-discussions, rfc]
+  fetcher: pytorch-community-mcp
+  scope: [discussions]
 
 - source: https://pytorch.org/blog/
   type: website
-  fetcher: webfetch
-  scope: [blog, release-highlights]
+  fetcher: pytorch-community-mcp
+  scope: [blog]
+
+- source: pytorch-events
+  type: events
+  fetcher: pytorch-community-mcp
+  scope: [events]
+
+- source: pytorch-slack
+  type: slack
+  fetcher: pytorch-community-mcp
+  scope: [slack-threads]
 
 ## Repository Context
 - primary_repo: pytorch/pytorch
