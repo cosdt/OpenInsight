@@ -2,8 +2,8 @@ name: Weekly Community Report
 
 on:
   schedule:
-    # Every Monday at 02:00 UTC
-    - cron: "0 2 * * 1"
+    # Every Monday at 01:00 UTC (09:00 Beijing Time)
+    - cron: "0 1 * * 1"
   workflow_dispatch:
     inputs:
       project:
