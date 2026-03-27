@@ -21,6 +21,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   generate-report:
@@ -77,6 +78,22 @@ jobs:
             git add -f reports/*.md
             git diff --cached --quiet || (git commit -m "chore: weekly report $(date +%Y-%m-%d)" && git push)
           fi
+
+      - name: Notify team via GitHub Issue
+        if: success()
+        run: |
+          REPORT=$(ls -t reports/*.md 2>/dev/null | head -1)
+          if [ -n "$REPORT" ]; then
+            gh label create "weekly-report" --color "0075ca" --description "Auto-generated weekly report" --force
+            gh issue create \
+              --title "PyTorchInsight 周报 $(date +%Y-%m-%d)" \
+              --body-file "$REPORT" \
+              --label "weekly-report"
+            gh issue list --label "weekly-report" --state open --json number --jq '.[].number' --limit 200 | \
+              tail -n +2 | xargs -I {} gh issue close {} --reason completed
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload diagnostic artifacts
         if: always()

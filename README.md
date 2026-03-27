@@ -67,7 +67,7 @@ opencode run \
 
 ## GitHub Actions 自动化部署
 
-项目支持通过 GitHub Actions 自动定时生成周报（每周一 UTC 02:00），也可手动触发。
+项目支持通过 GitHub Actions 自动定时生成周报（每周一 UTC 01:00 / 北京时间 09:00），也可手动触发。
 
 ### 配置 Secrets
 
@@ -86,6 +86,19 @@ opencode run \
 2. 选择 **Weekly Community Report** workflow
 3. 点击 **Run workflow**
 4. 可选填写 `project`（默认 pytorch）和 `time_window`（默认 最近7天）
+
+### 周报邮件通知
+
+每次周报生成成功后，workflow 会自动创建一个带 `weekly-report` 标签的 GitHub Issue，内容即为完整周报。
+
+**团队成员接收设置（两步缺一不可）：**
+
+1. 进入仓库页面，点击右上角 **Watch** → 选择 **All Activity** 或 **Custom** → 勾选 **Issues**
+2. 在 [GitHub Notifications 设置](https://github.com/settings/notifications) 中，确保 **Watching** 类别下的 **Email** 选项已勾选
+
+> **提示**：通知邮件来自 `notifications@github.com`，请确保该地址未被邮箱拦截。
+
+如需按标签过滤，可在 Issues 页面用 `label:weekly-report` 筛选所有历史周报。
 
 ### 失败通知
 
