@@ -1,0 +1,34 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "alibaba-cn": {
+      "options": {
+        "apiKey": "{env:DASHSCOPE_API_KEY}"
+      }
+    }
+  },
+  "permission": {
+    "*": "allow"
+  },
+  "mcp": {
+    "github": {
+      "type": "remote",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer {env:GH_PAT}"
+      }
+    },
+    "pytorch-community": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "--directory",
+        ".",
+        "pytorch-community-mcp"
+      ]
+    }
+  }
+}

@@ -1,0 +1,76 @@
+name: Cleanup Reports
+
+on:
+  schedule:
+    # 1st day of every 2nd month at 03:00 UTC
+    - cron: "0 3 1 */2 *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reports-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cleanup expired reports
+        run: |
+          threshold=$(date -d "2 months ago 23:59:59" +%s)
+          deleted=()
+
+          for file in reports/*.md; do
+            [ -f "$file" ] || continue
+
+            # Get the date when file was first committed (oldest add)
+            commit_date=$(git log --diff-filter=A --format=%aI -- "$file" | tail -1)
+
+            if [ -z "$commit_date" ]; then
+              echo "::warning::Could not determine commit date for $file, skipping"
+              continue
+            fi
+
+            file_epoch=$(date -d "$commit_date" +%s)
+
+            # Inclusive threshold: delete if commit date <= 2 months ago
+            if [ "$file_epoch" -le "$threshold" ]; then
+              if ! git rm "$file" 2>/dev/null; then
+                echo "::warning::Failed to git rm $file, skipping"
+                continue
+              fi
+              age_days=$(( ($(date +%s) - file_epoch) / 86400 ))
+              deleted+=("$file (${age_days} days old)")
+            fi
+          done
+
+          # Write summary to job output
+          echo "## Reports Cleanup" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ ${#deleted[@]} -gt 0 ]; then
+            echo "Deleted ${#deleted[@]} expired report(s):" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            for item in "${deleted[@]}"; do
+              echo "- $item" >> "$GITHUB_STEP_SUMMARY"
+            done
+          else
+            echo "No files to clean up." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --cached --quiet || (git commit -m "chore: cleanup reports older than 2 months" && git push)

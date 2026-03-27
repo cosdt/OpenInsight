@@ -65,6 +65,32 @@ opencode run \
 
 报告输出到 `reports/` 目录。
 
+## GitHub Actions 自动化部署
+
+项目支持通过 GitHub Actions 自动定时生成周报（每周一 UTC 02:00），也可手动触发。
+
+### 配置 Secrets
+
+在仓库 **Settings → Secrets and variables → Actions → New repository secret** 中添加以下两个 secret：
+
+| Secret | 描述 | 获取方式 |
+|--------|------|----------|
+| `DASHSCOPE_API_KEY` | 阿里云 DashScope API Key | [阿里云 DashScope 控制台](https://dashscope.console.aliyun.com/) → API-KEY 管理 |
+| `GH_PAT` | GitHub Personal Access Token | [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens) → Generate new token，勾选 `repo` 权限 |
+
+> **注意**：`GH_PAT` 用于 MCP Server 调用 GitHub API 获取社区数据。workflow 推送报告使用的是 GitHub Actions 默认的 `GITHUB_TOKEN`，无需额外配置。
+
+### 手动触发
+
+1. 进入仓库的 Actions 页面
+2. 选择 **Weekly Community Report** workflow
+3. 点击 **Run workflow**
+4. 可选填写 `project`（默认 pytorch）和 `time_window`（默认 最近7天）
+
+### 失败通知
+
+建议在仓库 Settings → Notifications 中开启 workflow failure 邮件通知，以便及时发现流水线异常。
+
 ## 独立使用 MCP Server
 
 OpenInsight 的 MCP Server 可以脱离多 Agent 工作流，单独配合 Claude Code 等 MCP 客户端使用，按需查询 PyTorch 社区数据。
